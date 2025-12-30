@@ -1,27 +1,27 @@
 import express, { Express } from "express";
-import {createLoggingMiddleware} from "./loggerMiddleware";
+import { createLoggingMiddleware } from "./loggerMiddleware";
 
 async function createServer(): Promise<Express> {
   const app: Express = express();
   app.use(express.json()); //for parsing json request body.
 
-  app.use(createLoggingMiddleware())
-  app.get("/api/health", (req, res)=>{
+  app.use(createLoggingMiddleware());
+  app.get("/api/health", (req, res) => {
     res.json({
-      status: 'ok',
-      response: 'i am ok bhai'
-    })
+      status: "ok",
+      response: "i am ok bhai",
+    });
     // console.log(print)
-  })
+  });
 
-  app.post('/api/test', (req, res)=>{
+  app.post("/api/test", (req, res) => {
     // console.log(req)
     const response = {
       ...req.body,
-      response: 'Test endpoint responding',
+      response: "Test endpoint responding",
     };
-    res.json(response)
-  })
+    res.json(response);
+  });
   return app;
 }
 
