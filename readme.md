@@ -5,3 +5,5 @@ Production-ready Express logging system with crash-safe Write-Ahead Log (WAL) an
 ## Architecture
 
 Two independent Node.js processes:
+1. **API Server**
+2. **Shipper**
