@@ -1,16 +1,18 @@
 import express, { Express } from "express";
 import { createLoggingMiddleware } from "./loggerMiddleware";
+import { WALWriter } from "../wal/walWriter";
+import { config } from "../config";
 
 async function createServer(): Promise<Express> {
   const app: Express = express();
   app.use(express.json()); //for parsing json request body.
 
-  app.use(createLoggingMiddleware());
+  const walWriter = new WALWriter();
+  await walWriter.open()
+
+  app.use(createLoggingMiddleware(walWriter));
   app.get("/api/health", (req, res) => {
-    res.json({
-      status: "ok",
-      response: "i am ok bhai",
-    });
+    res.send("I am fine, thankyou!");
     // console.log(print)
   });
 
