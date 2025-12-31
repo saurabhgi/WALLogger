@@ -36,7 +36,10 @@ export class WALWriter {
       return
     }
     const stringfiedJSONLine= JSON.stringify(event)+"\n";
-    
+    const buffer = Buffer.from(stringfiedJSONLine, 'utf-8'); // do the UTF-8 encoding for JSON string. 
+    await this.fileHandle.write(buffer,0,buffer.length,null); // write buffer to file. 
+    await this.fileHandle.sync(); // flush to storage data.
+ 
   }
   // function to close file
   async close(): Promise<void> {
