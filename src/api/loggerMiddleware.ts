@@ -1,5 +1,39 @@
 import { Request, Response, NextFunction } from "express";
 import { WALWriter, LogEvent } from "../wal/walWriter";
+import { config } from "../config";
+
+function truncateIfNeeded(value:unknown, maxSize: number): { value: any; truncated: boolean }{
+  if (value == null || value === undefined){
+    return {
+      value: "",
+      truncated: false
+    }
+  }
+
+  //Get the size
+  const stringfiedValue = JSON.stringify(value);
+  const sizeOfValue = Buffer.byteLength(stringfiedValue,'utf-8');
+
+  //check if size is exceeding configured max size.
+  if(sizeOfValue > maxSize){
+    //if yes then trucate it and return the response.
+    return {
+    value: {
+      _truncated: true,
+      _originalSize: sizeOfValue,
+      _maxSize: maxSize,
+    },
+    truncated: true,
+  };
+  }
+
+  //if not then send the formatted response
+  return {
+      value,
+      truncated:false
+    }
+
+}
 
 export function createLoggingMiddleware(walWriter: WALWriter) {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -7,13 +41,15 @@ export function createLoggingMiddleware(walWriter: WALWriter) {
     const requestId = `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`; //request-id generation logic
     let responseLogged = false;
 
+    const requestValueData = truncateIfNeeded(req.body, config.maxBodySize)
+
     const requestEvent: LogEvent = {
       requestId,
       timestamp: new Date().toISOString(),
       method: req.method,
       path: req.path,
-      request: req.body,
-      truncated: false,
+      request: requestValueData.value,
+      truncated: requestValueData.truncated,
     };
 
     walWriter.appendData(requestEvent).catch((error) => {
@@ -27,6 +63,8 @@ export function createLoggingMiddleware(walWriter: WALWriter) {
     res.json = function (data: any) {
       const duration = Date.now() - startTime;
 
+      const responseValueData = truncateIfNeeded(data, config.maxBodySize)
+
       const responseEvent: LogEvent = {
         requestId,
         timestamp: new Date().toISOString(),
@@ -34,9 +72,9 @@ export function createLoggingMiddleware(walWriter: WALWriter) {
         path: req.path,
         statusCode: res.statusCode,
         duration,
-        request: req.body,
-        response: data,
-        truncated: false,
+        request: requestValueData.value,
+        response: responseValueData.value,
+        truncated: requestValueData.truncated || responseValueData.truncated,
       };
 
       // Write response log to WAL
