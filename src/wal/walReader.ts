@@ -1,5 +1,6 @@
 import { promises as fs } from "node:fs";
 import { config } from "../config";
+import { LogEvent } from "./walWriter";
 
 export class WALReader {
   private readonly logPath: string;
@@ -19,7 +20,7 @@ export class WALReader {
     this.isOpen = true;
   }
 
-  async readFile(offset: number, maxBytes = 64 * 1024): Promise<void> {
+  async readFile(offset: number, maxBytes = 64 * 1024): Promise<{events:LogEvent[]; newOffset: number}> {
     /*check if file is open and filheandle varible has value assigned.
      *check filesize so that we can apply check on offset >= filesize. this means nothing to read.
      *Read file with constraints. do not read more than EOF, do not read more than maxSize
@@ -30,8 +31,41 @@ export class WALReader {
      *Split each line and push to an array
      *Loop over the array check for Valid JSON. If not valid log an error return accordinly. If valid then push to new Array. Update how many byte got read.
      *Return new array and newOffset(oldOffset + totalByteReadOffset)
-
      */
+
+     //check if file is open and filheandle varible has value assigned
+     if(!this.isOpen || !this.fileHandle){
+        throw new Error("File not open")
+     }
+
+     //check filesize so that we can apply check on offset >= filesize. this means nothing to read.
+     const fileSize = await this.getFileSize();
+     if(offset >= fileSize){
+        return {events:[], newOffset:offset}
+     }
+
+    
+     //Read file with constraints. do not read more than EOF, do not read more than maxSize
+     const bytesToRead = Math.min(maxBytes, fileSize-offset);
+
+      //Create buffer and allocate size to the buffer(mininum of (maxsize, remaining data to be read))
+     const buffer = Buffer.alloc(bytesToRead);
+     const {bytesRead} =await this.fileHandle.read(buffer, 0, bytesToRead, offset)
+
+     if(bytesRead == 0){
+       return {events:[], newOffset:offset}
+     }
+
+     const text = buffer.toString("utf-8",0,bytesRead)
+     const events:LogEvent [] = [];
+
+     const stringEvents: string[] = text.split('\n');
+
+     for(const log of stringEvents){
+
+     }
+
+     
   }
 
   //get file size
