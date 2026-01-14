@@ -20,7 +20,10 @@ export class WALReader {
     this.isOpen = true;
   }
 
-  async readFile(offset: number, maxBytes = 64 * 1024): Promise<{events:LogEvent[]; newOffset: number}> {
+  async readFile(
+    offset: number,
+    maxBytes = 64 * 1024,
+  ): Promise<{ events: LogEvent[]; newOffset: number }> {
     /*check if file is open and filheandle varible has value assigned.
      *check filesize so that we can apply check on offset >= filesize. this means nothing to read.
      *Read file with constraints. do not read more than EOF, do not read more than maxSize
@@ -33,39 +36,71 @@ export class WALReader {
      *Return new array and newOffset(oldOffset + totalByteReadOffset)
      */
 
-     //check if file is open and filheandle varible has value assigned
-     if(!this.isOpen || !this.fileHandle){
-        throw new Error("File not open")
-     }
+    //check if file is open and filheandle varible has value assigned
+    if (!this.isOpen || !this.fileHandle) {
+      throw new Error("File not open");
+    }
 
-     //check filesize so that we can apply check on offset >= filesize. this means nothing to read.
-     const fileSize = await this.getFileSize();
-     if(offset >= fileSize){
-        return {events:[], newOffset:offset}
-     }
+    //check filesize so that we can apply check on offset >= filesize. this means nothing to read.
+    const fileSize = await this.getFileSize();
+    if (offset >= fileSize) {
+      return { events: [], newOffset: offset };
+    }
 
-    
-     //Read file with constraints. do not read more than EOF, do not read more than maxSize
-     const bytesToRead = Math.min(maxBytes, fileSize-offset);
+    //Read file with constraints. do not read more than EOF, do not read more than maxSize
+    const bytesToRead = Math.min(maxBytes, fileSize - offset);
 
-      //Create buffer and allocate size to the buffer(mininum of (maxsize, remaining data to be read))
-     const buffer = Buffer.alloc(bytesToRead);
-     const {bytesRead} =await this.fileHandle.read(buffer, 0, bytesToRead, offset)
+    //Create buffer and allocate size to the buffer(mininum of (maxsize, remaining data to be read))
+    const buffer = Buffer.alloc(bytesToRead);
+    const { bytesRead } = await this.fileHandle.read(
+      buffer,
+      0,
+      bytesToRead,
+      offset,
+    );
 
-     if(bytesRead == 0){
-       return {events:[], newOffset:offset}
-     }
+    //Validate how many bytes got read. If no byte got read handle and return
+    if (bytesRead == 0) {
+      return { events: [], newOffset: offset };
+    }
 
-     const text = buffer.toString("utf-8",0,bytesRead)
-     const events:LogEvent [] = [];
+    //Convert buffer to string
+    const text = buffer.toString("utf-8", 0, bytesRead);
+    const events: LogEvent[] = [];
 
-     const stringEvents: string[] = text.split('\n');
+    //Split each line and push to an array
+    //Loop over the array check for Valid JSON. If not valid log an error return accordinly. If valid then push to new Array. Update how many byte got read.
+    const stringEvents = text.split("\n");
 
-     for(const log of stringEvents){
+    let totalReadBytes = 0;
+    let lastCompletedBytes = 0;
 
-     }
+    //Loop over the array check for Valid JSON. If not valid log an error return accordinly. If valid then push to new Array. 
+    // Update how many byte got read. Always skip the last line, it might be incomplete.
+    for (let i = 0; i < stringEvents.length - 1; i++) {
+      const log = stringEvents[i];
+      const logWithNextLine = log + "\n";
+      const lineBytes = Buffer.byteLength(logWithNextLine, "utf-8");
 
-     
+      if (log.trim()) {
+        try {
+          const parsedJSON = JSON.parse(log) as LogEvent;
+          events.push(parsedJSON);
+        } catch (error) {
+          console.log(
+            `Not able to parse the JSON ${offset + totalReadBytes} `,
+            error,
+          );
+        }
+      }
+
+      totalReadBytes += lineBytes;
+      lastCompletedBytes = totalReadBytes;
+    }
+
+    // Return new array and newOffset(oldOffset + totalByteReadOffset)
+    const newOffset = offset + lastCompletedBytes;
+    return { events, newOffset };
   }
 
   //get file size
